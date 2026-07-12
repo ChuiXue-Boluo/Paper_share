@@ -123,31 +123,6 @@ Do not commit real lab papers, private notes, local databases, credentials, or g
 
 Example user-level systemd service templates are available in `ops/systemd/`. They use placeholders and must be adapted to your machine before installation.
 
-### Nginx LAN Deployment
-
-For shared LAN access, build the frontend and let Nginx serve the static app while proxying API and uploaded files to the backend:
-
-```bash
-cd client
-npm run build
-
-sudo mkdir -p /var/www/paper-share
-sudo cp -r dist/. /var/www/paper-share/
-sudo chown -R www-data:www-data /var/www/paper-share
-
-sudo cp ../ops/nginx/paper-share.conf /etc/nginx/sites-available/paper-share
-sudo ln -sfn /etc/nginx/sites-available/paper-share /etc/nginx/sites-enabled/paper-share
-sudo nginx -t
-sudo systemctl reload nginx
-sudo ufw allow 8080/tcp
-```
-
-Then open:
-
-```text
-http://SERVER_IP:8080
-```
-
 ### License
 
 MIT License. See [LICENSE](./LICENSE).
@@ -272,31 +247,6 @@ cp server/.env.example server/.env
 ### Systemd 示例
 
 `ops/systemd/` 中提供用户级 systemd 服务模板。模板包含占位符，安装前需要按自己的机器路径修改。
-
-### Nginx 局域网部署
-
-多人局域网访问时，推荐用 Nginx 统一入口：前端使用生产构建产物，`/api` 和 `/uploads` 代理到后端。
-
-```bash
-cd client
-npm run build
-
-sudo mkdir -p /var/www/paper-share
-sudo cp -r dist/. /var/www/paper-share/
-sudo chown -R www-data:www-data /var/www/paper-share
-
-sudo cp ../ops/nginx/paper-share.conf /etc/nginx/sites-available/paper-share
-sudo ln -sfn /etc/nginx/sites-available/paper-share /etc/nginx/sites-enabled/paper-share
-sudo nginx -t
-sudo systemctl reload nginx
-sudo ufw allow 8080/tcp
-```
-
-访问：
-
-```text
-http://服务器IP:8080
-```
 
 ### 许可证
 
