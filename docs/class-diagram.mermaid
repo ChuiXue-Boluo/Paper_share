@@ -1,0 +1,119 @@
+classDiagram
+    %% ===== 数据模型 =====
+    class User {
+        +int id
+        +string username
+        +string email
+        +string passwordHash
+        +string role
+        +string createdAt
+        +string updatedAt
+    }
+
+    class Field {
+        +int id
+        +string name
+        +string description
+        +int createdBy
+        +string createdAt
+        +string updatedAt
+    }
+
+    class Paper {
+        +int id
+        +string title
+        +string authors
+        +int year
+        +string source
+        +string abstract
+        +int fieldId
+        +string filePath
+        +int fileSize
+        +int uploadedBy
+        +string createdAt
+        +string updatedAt
+    }
+
+    class Note {
+        +int id
+        +int paperId
+        +string content
+        +int lastEditedBy
+        +string lastEditedAt
+        +string createdAt
+        +string updatedAt
+    }
+
+    class NoteRevision {
+        +int id
+        +int noteId
+        +string content
+        +int editedBy
+        +string createdAt
+    }
+
+    %% ===== 控制器（服务层） =====
+    class FieldController {
+        +listFields() Field[]
+        +getField(id) Field
+        +createField(data) Field
+        +updateField(id, data) Field
+    }
+
+    class PaperController {
+        +listPapers(fieldId, query) Paper[]
+        +getPaper(id) Paper
+        +uploadPaper(fieldId, file, metadata) Paper
+        +updatePaper(id, data) Paper
+        +downloadPaper(id) Stream
+        +deletePaper(id) void
+    }
+
+    class NoteController {
+        +getNote(paperId) Note
+        +updateNote(paperId, content) Note
+        +uploadNoteImage(paperId, file) string
+        +getRevisions(paperId) NoteRevision[]
+        +restoreRevision(revisionId) Note
+    }
+
+    class AuthController {
+        +register(data) TokenUser
+        +login(credentials) TokenUser
+        +getCurrentUser(token) User
+    }
+
+    %% ===== 工具类 =====
+    class MarkdownUtils {
+        +extractOverview(content) string
+        +stripMarkdown(text) string
+        +truncate(text, length) string
+    }
+
+    class StorageUtils {
+        +savePaperFile(file, paperId) string
+        +saveImageFile(file) string
+        +getFilePath(filename) string
+        +sanitizeFilename(name) string
+    }
+
+    %% ===== 关系 =====
+    User "1" --> "*" Field : creates
+    User "1" --> "*" Paper : uploads
+    User "1" --> "*" Note : edits
+    Field "1" --> "*" Paper : contains
+    Paper "1" --> "1" Note : has one
+    Note "1" --> "*" NoteRevision : has many
+
+    %% 控制器依赖
+    FieldController --> Field : manages
+    FieldController --> User : references
+    PaperController --> Paper : manages
+    PaperController --> Field : references
+    PaperController --> Note : creates on upload
+    PaperController --> StorageUtils : saves files
+    PaperController --> MarkdownUtils : extracts overview
+    NoteController --> Note : manages
+    NoteController --> NoteRevision : manages
+    NoteController --> StorageUtils : saves images
+    AuthController --> User : manages

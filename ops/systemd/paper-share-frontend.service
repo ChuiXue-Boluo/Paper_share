@@ -1,0 +1,14 @@
+[Unit]
+Description=PaperShare frontend Vite server
+After=network-online.target paper-share-backend.service
+Wants=network-online.target paper-share-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=/absolute/path/to/paper-share/client
+ExecStart=/usr/bin/env npm run dev
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

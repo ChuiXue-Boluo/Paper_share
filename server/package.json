@@ -1,0 +1,26 @@
+{
+  "name": "paper-share-server",
+  "version": "0.1.0",
+  "private": true,
+  "author": "ChuiXue-Boluo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChuiXue-Boluo/Paper_share.git",
+    "directory": "server"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js",
+    "seed": "node src/db/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.2.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {}
+}

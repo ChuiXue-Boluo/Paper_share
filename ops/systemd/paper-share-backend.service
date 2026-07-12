@@ -1,0 +1,14 @@
+[Unit]
+Description=PaperShare backend API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/absolute/path/to/paper-share/server
+ExecStart=/usr/bin/env npm run dev
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

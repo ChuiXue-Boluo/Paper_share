@@ -1,0 +1,126 @@
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { Alert, Autocomplete, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
+import { FormEvent, useEffect, useState } from 'react';
+import { fetchGlobalPaperOptions, fetchPaperOptions, uploadPaper } from '../../api/papers';
+import type { Field } from '../../types';
+
+interface Props {
+  fieldId?: string | number | null;
+  fields: Field[];
+  open: boolean;
+  onClose: () => void;
+  onUploaded: () => void;
+}
+
+export default function PaperUploadDialog({ fieldId = null, fields, open, onClose, onUploaded }: Props) {
+  const [title, setTitle] = useState('');
+  const [source, setSource] = useState('');
+  const [topic, setTopic] = useState('');
+  const [uploaderName, setUploaderName] = useState('');
+  const [selectedFieldNames, setSelectedFieldNames] = useState<string[]>([]);
+  const [venueOptions, setVenueOptions] = useState<string[]>([]);
+  const [topicOptions, setTopicOptions] = useState<string[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const currentField = fieldId ? fields.find((field) => String(field.id) === String(fieldId)) : null;
+    setSelectedFieldNames(currentField ? [currentField.name] : []);
+    const optionsRequest = fieldId ? fetchPaperOptions(fieldId) : fetchGlobalPaperOptions();
+    optionsRequest
+      .then((options) => {
+        setVenueOptions(options.venues);
+        setTopicOptions(options.topics);
+      })
+      .catch(() => {
+        setVenueOptions([]);
+        setTopicOptions([]);
+      });
+  }, [fieldId, fields, open]);
+
+  function inferTitleFromFileName(fileName: string) {
+    return fileName.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim();
+  }
+
+  function handleFileChange(nextFile: File | null) {
+    setFile(nextFile);
+    if (nextFile && !title.trim()) {
+      setTitle(inferTitleFromFileName(nextFile.name));
+    }
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError('');
+    if (!title.trim()) return setError('标题不能为空');
+    if (!uploaderName.trim()) return setError('上传者不能为空');
+    if (!selectedFieldNames.length) return setError('请至少选择一个所属领域');
+    if (!file) return setError('请选择 PDF 文件');
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return setError('仅支持 PDF 文件');
+    const fieldIds = selectedFieldNames
+      .map((name) => fields.find((field) => field.name.toLowerCase() === name.toLowerCase())?.id)
+      .filter((id): id is number => Boolean(id));
+    const fieldNames = selectedFieldNames.filter((name) => !fields.some((field) => field.name.toLowerCase() === name.toLowerCase()));
+    setSubmitting(true);
+    try {
+      await uploadPaper(fieldId, { title, source, topic, uploaderName, fieldIds, fieldNames, file });
+      setTitle('');
+      setSource('');
+      setTopic('');
+      setUploaderName('');
+      setSelectedFieldNames([]);
+      setFile(null);
+      onUploaded();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <form onSubmit={handleSubmit}>
+        <DialogTitle>上传论文</DialogTitle>
+        <DialogContent className="flex flex-col gap-4 pt-2">
+          {error ? <Alert severity="error">{error}</Alert> : null}
+          <TextField label="标题" value={title} onChange={(e) => setTitle(e.target.value)} required fullWidth />
+          <TextField label="上传者" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} required fullWidth />
+          <Autocomplete
+            multiple
+            freeSolo
+            options={fields.map((field) => field.name)}
+            value={selectedFieldNames}
+            onChange={(_event, value) => setSelectedFieldNames([...new Set(value.map((item) => item.trim()).filter(Boolean))])}
+            renderInput={(params) => <TextField {...params} label="所属领域" placeholder="选择或输入领域" required />}
+          />
+          <Autocomplete
+            freeSolo
+            options={venueOptions}
+            value={source}
+            onInputChange={(_event, value) => setSource(value)}
+            renderInput={(params) => <TextField {...params} label="发表会议" placeholder="ACL 2026, ICLR 2026" />}
+          />
+          <Autocomplete
+            freeSolo
+            options={topicOptions}
+            value={topic}
+            onInputChange={(_event, value) => setTopic(value)}
+            renderInput={(params) => <TextField {...params} label="具体方向" placeholder="credit assignment, planning" />}
+          />
+          <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}>
+            {file ? file.name : '选择 PDF'}
+            <input hidden type="file" accept="application/pdf,.pdf" onChange={(e) => handleFileChange(e.target.files?.[0] || null)} />
+          </Button>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>取消</Button>
+          <Button type="submit" variant="contained" disabled={submitting}>{submitting ? '上传中' : '上传'}</Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+  );
+}

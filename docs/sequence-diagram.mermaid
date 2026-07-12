@@ -1,0 +1,154 @@
+%% ==========================================
+%% 时序图 1：论文上传流程
+%% ==========================================
+sequenceDiagram
+    participant U as 用户
+    participant FE as 前端 (PaperUploadDialog)
+    participant BE as 后端 (paperController)
+    participant DB as SQLite
+    participant FS as 文件系统
+
+    U->>FE: 点击「上传论文」按钮
+    FE->>FE: 打开上传对话框
+    U->>FE: 选择 PDF 文件 + 填写元信息（标题/作者/年份）
+    FE->>FE: 前端校验（PDF 格式、标题必填）
+    alt 校验失败
+        FE-->>U: 显示错误提示
+    else 校验通过
+        FE->>BE: POST /api/fields/:fieldId/papers (multipart)
+        BE->>BE: 后端校验文件 MIME + 字段
+        alt 校验失败
+            BE-->>FE: { code: 400, message: "..." }
+            FE-->>U: 显示错误
+        else 校验通过
+            BE->>FS: 保存 PDF 到 uploads/papers/
+            BE->>DB: INSERT INTO papers (title, authors, year, field_id, file_path, ...)
+            BE->>DB: INSERT INTO notes (paper_id, content) — 初始模板 "# 论文概述\n\n# 阅读笔记\n"
+            BE-->>FE: { code: 0, data: Paper }
+            FE->>FE: 关闭对话框，刷新论文列表
+            FE-->>U: 显示上传成功 Snackbar
+        end
+    end
+
+%% ==========================================
+%% 时序图 2：笔记编辑与自动保存流程
+%% ==========================================
+sequenceDiagram
+    participant U as 用户
+    participant FE as 前端 (NoteEditorPage)
+    participant Hook as useAutoSave
+    participant BE as 后端 (noteController)
+    participant DB as SQLite
+
+    U->>FE: 点击「记笔记」→ 进入 /papers/:paperId/notes
+    FE->>BE: GET /api/papers/:paperId/note
+    BE->>DB: SELECT * FROM notes WHERE paper_id = ?
+    alt 笔记不存在（异常情况）
+        BE->>DB: INSERT INTO notes (paper_id, content) — 初始模板
+    end
+    BE-->>FE: { code: 0, data: Note }
+    FE->>FE: 渲染 @uiw/react-md-editor，加载 content
+    FE->>FE: 初始化 useAutoSave(paperId, content)
+
+    loop 用户编辑笔记
+        U->>FE: 在编辑器中输入/修改
+        FE->>Hook: save(newContent)
+        Hook->>Hook: 设置状态 = "editing"
+        Hook->>Hook: 清除上一个 5s 定时器
+        Hook->>Hook: 启动新的 5s 定时器
+    end
+
+    Note over Hook: 5 秒无新输入 → 定时器触发
+    Hook->>Hook: 对比 content 与 savedContent
+    alt 内容未变化
+        Hook->>Hook: 跳过保存
+    else 内容有变化
+        Hook->>Hook: 设置状态 = "saving"
+        Hook->>BE: PUT /api/papers/:paperId/note { content }
+        BE->>DB: INSERT INTO note_revisions (note_id, old_content) — P1
+        BE->>DB: UPDATE notes SET content=?, last_edited_at=?
+        BE-->>Hook: { code: 0, data: Note }
+        Hook->>Hook: 更新 savedContent，设置状态 = "saved"
+        Hook->>FE: 更新 SaveStatusBar
+        FE-->>U: 显示「✓ 已自动保存」
+    end
+
+%% ==========================================
+%% 时序图 3：论文列表与概述预览流程
+%% ==========================================
+sequenceDiagram
+    participant FE as 前端 (FieldDetailPage)
+    participant BE as 后端 (paperController)
+    participant DB as SQLite
+    participant Util as markdown.js (extractOverview)
+
+    FE->>BE: GET /api/fields/:fieldId/papers?search=transformer&sort=latest
+
+    BE->>DB: SELECT * FROM fields WHERE id = ?
+    BE->>DB: SELECT * FROM papers WHERE field_id = ? AND (title LIKE ? OR authors LIKE ?) ORDER BY created_at DESC
+
+    loop 每篇论文
+        BE->>DB: SELECT content FROM notes WHERE paper_id = ?
+        alt 有笔记且含概述内容
+            BE->>Util: extractOverview(noteContent)
+            Util->>Util: 1. 定位 "# 论文概述" 行
+            Util->>Util: 2. 收集至下一个 "# " 行前的内容
+            Util->>Util: 3. 去除 Markdown 语法（**bold**、![img]()、[link]()等）
+            Util->>Util: 4. 截断至 150 字 + "..."
+            Util-->>BE: "本文提出了 Transformer 架构..."
+        else 无笔记或概述为空
+            BE->>BE: overviewPreview = null
+        end
+    end
+
+    BE-->>FE: { code: 0, data: { field, papers[{...,overviewPreview}], total } }
+    FE->>FE: 渲染 PaperCard 列表
+    Note over FE: 每张卡片显示概述预览文本<br/>或「暂无概述」占位
+
+%% ==========================================
+%% 时序图 4：笔记图片上传流程 (P1)
+%% ==========================================
+sequenceDiagram
+    participant U as 用户
+    participant Editor as NoteEditor (MDEditor)
+    participant BE as 后端 (noteController)
+    participant FS as 文件系统
+
+    U->>Editor: 点击工具栏「🖼 图片」自定义命令
+    Editor->>U: 弹出文件选择器 (input type=file)
+    U->>Editor: 选择图片文件
+    Editor->>BE: POST /api/papers/:paperId/note/image (multipart)
+    BE->>BE: 校验图片格式 (jpeg/png/gif/webp) + 大小 ≤5MB
+    alt 校验失败
+        BE-->>Editor: { code: 400, message: "..." }
+        Editor-->>U: 显示错误提示
+    else 校验通过
+        BE->>FS: 保存到 uploads/images/{timestamp}_{filename}
+        BE-->>Editor: { code: 0, data: { url: "/uploads/images/xxx.png" } }
+        Editor->>Editor: 在光标位置插入 ![filename](/uploads/images/xxx.png)
+        Editor-->>U: 预览区实时渲染图片
+    end
+
+%% ==========================================
+%% 时序图 5：用户登录流程 (P1)
+%% ==========================================
+sequenceDiagram
+    participant U as 用户
+    participant FE as 前端
+    participant BE as 后端 (authController)
+    participant DB as SQLite
+
+    U->>FE: 输入用户名 + 密码，点击登录
+    FE->>BE: POST /api/auth/login { username, password }
+    BE->>DB: SELECT * FROM users WHERE username = ?
+    BE->>BE: bcrypt.compare(password, user.password_hash)
+    alt 认证失败
+        BE-->>FE: { code: 401, message: "用户名或密码错误" }
+        FE-->>U: 显示错误提示
+    else 认证成功
+        BE->>BE: jwt.sign({ id, username, role }, SECRET)
+        BE-->>FE: { code: 0, data: { token, user } }
+        FE->>FE: localStorage.setItem("paper_share_token", token)
+        FE->>FE: Axios 拦截器后续自动携带 Authorization header
+        FE-->>U: 登录成功，刷新页面状态
+    end
