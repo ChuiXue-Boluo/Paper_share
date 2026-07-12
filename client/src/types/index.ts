@@ -50,7 +50,6 @@ export interface UploadPaperPayload {
   topic?: string;
   uploaderName: string;
   fieldIds: number[];
-  fieldNames?: string[];
   abstract?: string;
   file: File;
 }
@@ -61,7 +60,6 @@ export interface UpdatePaperPayload {
   topic?: string;
   uploaderName?: string;
   fieldIds?: number[];
-  fieldNames?: string[];
 }
 
 export interface PaperOptions {

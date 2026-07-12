@@ -62,10 +62,10 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
     const fieldIds = selectedFieldNames
       .map((name) => fields.find((field) => field.name.toLowerCase() === name.toLowerCase())?.id)
       .filter((id): id is number => Boolean(id));
-    const fieldNames = selectedFieldNames.filter((name) => !fields.some((field) => field.name.toLowerCase() === name.toLowerCase()));
+    if (fieldIds.length !== selectedFieldNames.length) return setError('所属领域只能从已有领域中选择');
     setSubmitting(true);
     try {
-      await uploadPaper(fieldId, { title, source, topic, uploaderName, fieldIds, fieldNames, file });
+      await uploadPaper(fieldId, { title, source, topic, uploaderName, fieldIds, file });
       setTitle('');
       setSource('');
       setTopic('');
@@ -91,11 +91,10 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
           <TextField label="上传者" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} required fullWidth />
           <Autocomplete
             multiple
-            freeSolo
             options={fields.map((field) => field.name)}
             value={selectedFieldNames}
-            onChange={(_event, value) => setSelectedFieldNames([...new Set(value.map((item) => item.trim()).filter(Boolean))])}
-            renderInput={(params) => <TextField {...params} label="所属领域" placeholder="选择或输入领域" required />}
+            onChange={(_event, value) => setSelectedFieldNames([...new Set(value)])}
+            renderInput={(params) => <TextField {...params} label="所属领域" placeholder="选择已有领域，可多选" required />}
           />
           <Autocomplete
             freeSolo

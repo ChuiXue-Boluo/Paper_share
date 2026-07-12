@@ -159,14 +159,7 @@ function resolveFieldIds(db, req) {
   const fieldNames = parseJsonArray(req.body.fieldNames)
     .map((name) => String(name || '').trim())
     .filter(Boolean);
-  for (const name of fieldNames) {
-    let field = db.prepare('SELECT id FROM fields WHERE lower(trim(name)) = lower(trim(?))').get(name);
-    if (!field) {
-      const info = db.prepare('INSERT INTO fields (name, description) VALUES (?, ?)').run(name, '');
-      field = { id: info.lastInsertRowid };
-    }
-    ids.add(field.id);
-  }
+  if (fieldNames.length) throw createHttpError(400, '所属领域只能从已有领域中选择');
 
   const existingIds = [...ids].filter((id) => db.prepare('SELECT id FROM fields WHERE id = ?').get(id));
   if (!existingIds.length) throw createHttpError(400, '请至少选择一个所属领域');

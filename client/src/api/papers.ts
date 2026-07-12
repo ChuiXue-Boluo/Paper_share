@@ -26,7 +26,6 @@ export async function uploadPaper(fieldId: string | number | null, payload: Uplo
   form.append('file', payload.file);
   form.append('title', payload.title);
   form.append('fieldIds', JSON.stringify(payload.fieldIds));
-  if (payload.fieldNames?.length) form.append('fieldNames', JSON.stringify(payload.fieldNames));
   if (payload.authors) form.append('authors', payload.authors);
   if (payload.year) form.append('year', payload.year);
   if (payload.source) form.append('source', payload.source);
