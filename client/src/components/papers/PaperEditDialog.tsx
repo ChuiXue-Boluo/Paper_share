@@ -1,4 +1,4 @@
-import { Alert, Autocomplete, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
+import { Alert, Autocomplete, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, ListItemText, MenuItem, OutlinedInput, Select, TextField } from '@mui/material';
 import { FormEvent, useEffect, useState } from 'react';
 import { fetchGlobalPaperOptions, updatePaper } from '../../api/papers';
 import type { Field, Paper } from '../../types';
@@ -16,7 +16,7 @@ export default function PaperEditDialog({ paper, fields, open, onClose, onUpdate
   const [source, setSource] = useState('');
   const [topic, setTopic] = useState('');
   const [uploaderName, setUploaderName] = useState('');
-  const [selectedFieldNames, setSelectedFieldNames] = useState<string[]>([]);
+  const [selectedFieldIds, setSelectedFieldIds] = useState<number[]>([]);
   const [venueOptions, setVenueOptions] = useState<string[]>([]);
   const [topicOptions, setTopicOptions] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -28,7 +28,7 @@ export default function PaperEditDialog({ paper, fields, open, onClose, onUpdate
     setSource(paper.source || '');
     setTopic(paper.topic || '');
     setUploaderName(paper.uploaderName || '');
-    setSelectedFieldNames(paper.fieldNames?.length ? paper.fieldNames : paper.fieldName ? [paper.fieldName] : []);
+    setSelectedFieldIds(paper.fieldIds?.length ? paper.fieldIds : paper.fieldId ? [paper.fieldId] : []);
     setError('');
     fetchGlobalPaperOptions()
       .then((options) => {
@@ -46,11 +46,9 @@ export default function PaperEditDialog({ paper, fields, open, onClose, onUpdate
     if (!paper) return;
     setError('');
     if (!title.trim()) return setError('标题不能为空');
-    if (!selectedFieldNames.length) return setError('请至少选择一个所属领域');
-    const fieldIds = selectedFieldNames
-      .map((name) => fields.find((field) => field.name.toLowerCase() === name.toLowerCase())?.id)
-      .filter((id): id is number => Boolean(id));
-    if (fieldIds.length !== selectedFieldNames.length) return setError('所属领域只能从已有领域中选择');
+    if (!selectedFieldIds.length) return setError('请至少选择一个所属领域');
+    const fieldIds = selectedFieldIds.filter((id) => fields.some((field) => field.id === id));
+    if (fieldIds.length !== selectedFieldIds.length) return setError('所属领域只能从已有领域中选择');
     setSubmitting(true);
     try {
       await updatePaper(paper.id, { title, source, topic, uploaderName, fieldIds });
@@ -71,13 +69,24 @@ export default function PaperEditDialog({ paper, fields, open, onClose, onUpdate
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField label="标题" value={title} onChange={(event) => setTitle(event.target.value)} required fullWidth />
           <TextField label="上传者" value={uploaderName} onChange={(event) => setUploaderName(event.target.value)} fullWidth />
-          <Autocomplete
-            multiple
-            options={fields.map((field) => field.name)}
-            value={selectedFieldNames}
-            onChange={(_event, value) => setSelectedFieldNames([...new Set(value)])}
-            renderInput={(params) => <TextField {...params} label="所属领域" placeholder="选择已有领域，可多选" required />}
-          />
+          <FormControl fullWidth required>
+            <InputLabel id="edit-field-label">所属领域</InputLabel>
+            <Select
+              labelId="edit-field-label"
+              multiple
+              value={selectedFieldIds}
+              input={<OutlinedInput label="所属领域" />}
+              renderValue={(selected) => fields.filter((field) => selected.includes(field.id)).map((field) => field.name).join('、')}
+              onChange={(event) => setSelectedFieldIds(event.target.value as number[])}
+            >
+              {fields.map((field) => (
+                <MenuItem key={field.id} value={field.id}>
+                  <Checkbox checked={selectedFieldIds.includes(field.id)} />
+                  <ListItemText primary={field.name} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <Autocomplete
             freeSolo
             options={venueOptions}

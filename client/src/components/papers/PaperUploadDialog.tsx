@@ -1,5 +1,5 @@
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import { Alert, Autocomplete, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
+import { Alert, Autocomplete, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, ListItemText, MenuItem, OutlinedInput, Select, TextField } from '@mui/material';
 import { FormEvent, useEffect, useState } from 'react';
 import { fetchGlobalPaperOptions, fetchPaperOptions, uploadPaper } from '../../api/papers';
 import type { Field } from '../../types';
@@ -17,7 +17,7 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
   const [source, setSource] = useState('');
   const [topic, setTopic] = useState('');
   const [uploaderName, setUploaderName] = useState('');
-  const [selectedFieldNames, setSelectedFieldNames] = useState<string[]>([]);
+  const [selectedFieldIds, setSelectedFieldIds] = useState<number[]>([]);
   const [venueOptions, setVenueOptions] = useState<string[]>([]);
   const [topicOptions, setTopicOptions] = useState<string[]>([]);
   const [file, setFile] = useState<File | null>(null);
@@ -27,7 +27,7 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
   useEffect(() => {
     if (!open) return;
     const currentField = fieldId ? fields.find((field) => String(field.id) === String(fieldId)) : null;
-    setSelectedFieldNames(currentField ? [currentField.name] : []);
+    setSelectedFieldIds(currentField ? [currentField.id] : []);
     const optionsRequest = fieldId ? fetchPaperOptions(fieldId) : fetchGlobalPaperOptions();
     optionsRequest
       .then((options) => {
@@ -56,13 +56,11 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
     setError('');
     if (!title.trim()) return setError('标题不能为空');
     if (!uploaderName.trim()) return setError('上传者不能为空');
-    if (!selectedFieldNames.length) return setError('请至少选择一个所属领域');
+    if (!selectedFieldIds.length) return setError('请至少选择一个所属领域');
     if (!file) return setError('请选择 PDF 文件');
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return setError('仅支持 PDF 文件');
-    const fieldIds = selectedFieldNames
-      .map((name) => fields.find((field) => field.name.toLowerCase() === name.toLowerCase())?.id)
-      .filter((id): id is number => Boolean(id));
-    if (fieldIds.length !== selectedFieldNames.length) return setError('所属领域只能从已有领域中选择');
+    const fieldIds = selectedFieldIds.filter((id) => fields.some((field) => field.id === id));
+    if (fieldIds.length !== selectedFieldIds.length) return setError('所属领域只能从已有领域中选择');
     setSubmitting(true);
     try {
       await uploadPaper(fieldId, { title, source, topic, uploaderName, fieldIds, file });
@@ -70,7 +68,7 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
       setSource('');
       setTopic('');
       setUploaderName('');
-      setSelectedFieldNames([]);
+      setSelectedFieldIds([]);
       setFile(null);
       onUploaded();
       onClose();
@@ -89,13 +87,24 @@ export default function PaperUploadDialog({ fieldId = null, fields, open, onClos
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField label="标题" value={title} onChange={(e) => setTitle(e.target.value)} required fullWidth />
           <TextField label="上传者" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} required fullWidth />
-          <Autocomplete
-            multiple
-            options={fields.map((field) => field.name)}
-            value={selectedFieldNames}
-            onChange={(_event, value) => setSelectedFieldNames([...new Set(value)])}
-            renderInput={(params) => <TextField {...params} label="所属领域" placeholder="选择已有领域，可多选" required />}
-          />
+          <FormControl fullWidth required>
+            <InputLabel id="upload-field-label">所属领域</InputLabel>
+            <Select
+              labelId="upload-field-label"
+              multiple
+              value={selectedFieldIds}
+              input={<OutlinedInput label="所属领域" />}
+              renderValue={(selected) => fields.filter((field) => selected.includes(field.id)).map((field) => field.name).join('、')}
+              onChange={(event) => setSelectedFieldIds(event.target.value as number[])}
+            >
+              {fields.map((field) => (
+                <MenuItem key={field.id} value={field.id}>
+                  <Checkbox checked={selectedFieldIds.includes(field.id)} />
+                  <ListItemText primary={field.name} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <Autocomplete
             freeSolo
             options={venueOptions}
